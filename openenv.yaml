@@ -1,0 +1,350 @@
+
+
+metadata:
+  name: adaptive-ai-project-manager
+  version: "2.1.0"
+  description: >
+    A high-fidelity Agile sprint simulation environment for reinforcement learning.
+    An AI agent must assign developers to tasks, manage team fatigue, respond to
+    dynamic real-world disruptions (bugs, sick days, scope creep, infrastructure
+    outages), and maximise sprint delivery within a fixed time horizon.
+  author: Hackathon Team
+  tags:
+    - project-management
+    - agile
+    - multi-agent-ready
+    - stochastic
+    - continuous-action
+  license: MIT
+
+interface:
+  reset:
+    http_method: POST
+    http_path: /reset
+    description: Initialise a fresh episode. Returns the first observation.
+    inputs:
+      scenario:
+        type: string
+        enum: [easy, medium, hard, small, large, chaos]
+        default: medium
+      seed:
+        type: integer
+        default: 42
+        description: Deterministic RNG seed. Same seed + scenario = identical episode.
+    returns: Observation
+
+  step:
+    http_method: POST
+    http_path: /step
+    description: Submit one action, advance the clock by one step.
+    inputs:
+      action:
+        type: Action
+        description: A structured action object (see action_schema below).
+    returns:
+      observation: Observation
+      reward: float
+      done: boolean
+      info:
+        action_valid: boolean
+        reasoning: string
+        action_echo: object
+        step_summary: string
+
+  state:
+    http_method: GET
+    http_path: /state
+    description: Read-only snapshot of current environment state. No side effects.
+    returns: Observation
+
+  grade:
+    http_method: GET
+    http_path: /grader
+    description: >
+      Deterministically grade the completed episode across 8 weighted dimensions.
+      Only callable when done=true.
+    returns: ScoreBreakdown
+
+action_schema:
+  type: object
+  description: >
+    Exactly one action type per step. Populate the matching payload fields.
+  properties:
+    action_type:
+      type: string
+      enum:
+        - assign_task
+        - unassign_task
+        - reprioritize
+        - rest_developer
+        - split_task
+        - pair_program
+        - noop
+
+
+    task_id:
+      type: string
+      description: Required for: assign_task, unassign_task, reprioritize, split_task, pair_program
+
+    developer_id:
+      type: string
+      description: Required for: assign_task, unassign_task, rest_developer
+
+    primary_developer_id:
+      type: string
+      description: Required for: pair_program
+
+    secondary_developer_id:
+      type: string
+      description: Required for: pair_program
+
+    new_priority:
+      type: string
+      enum: [low, medium, high, critical]
+      description: Required for: reprioritize
+
+    split_ratio:
+      type: number
+      minimum: 0.2
+      maximum: 0.8
+      default: 0.5
+      description: Optional for split_task. Fraction allocated to Part A.
+
+observation_schema:
+  type: object
+  properties:
+    step:
+      type: integer
+      description: Current time step (0-indexed).
+    max_steps:
+      type: integer
+      description: Episode length (varies by scenario).
+    done:
+      type: boolean
+      description: True when episode has terminated.
+    reward:
+      type: number
+      description: Dense per-step shaped reward signal.
+    tasks:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: string }
+          name: { type: string }
+          status:
+            type: string
+            enum: [pending, ready, in_progress, blocked, completed, failed]
+          priority:
+            type: string
+            enum: [low, medium, high, critical]
+          story_points: { type: number }
+          remaining_points: { type: number }
+          completion_ratio: { type: number, minimum: 0, maximum: 1 }
+          deadline_step: { type: integer }
+          business_value: { type: number }
+          required_skills:
+            type: array
+            items:
+              type: string
+              enum: [backend, frontend, ml, devops, qa, data, security, mobile]
+          assigned_to: { type: array, items: { type: string } }
+          dependencies: { type: array, items: { type: string } }
+          urgency_score: { type: number }
+          is_injected: { type: boolean }
+
+    developers:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: string }
+          name: { type: string }
+          velocity: { type: number }
+          fatigue: { type: number, minimum: 0, maximum: 1 }
+          available: { type: boolean }
+          skills: { type: object, additionalProperties: { type: number } }
+          current_tasks: { type: array, items: { type: string } }
+          effective_velocity: { type: number }
+
+    metrics:
+      type: object
+      properties:
+        total_tasks: { type: integer }
+        completed_tasks: { type: integer }
+        failed_tasks: { type: integer }
+        total_story_points: { type: number }
+        delivered_story_points: { type: number }
+        delivery_pct: { type: string }
+        on_time_deliveries: { type: integer }
+        events_handled: { type: integer }
+
+    recent_events:
+      type: array
+      description: Events that fired during the most recent step.
+      items:
+        type: object
+        properties:
+          id: { type: string }
+          type:
+            type: string
+            enum:
+              - bug_report
+              - scope_change
+              - developer_sick
+              - urgent_feature
+              - infra_outage
+              - knowledge_transfer
+          description: { type: string }
+
+    info:
+      type: object
+      properties:
+        action_valid: { type: boolean }
+        reasoning: { type: string, description: "Natural-language explanation of this step." }
+        action_echo: { type: object }
+        step_summary: { type: string }
+        decision_reason:
+          type: object
+          description: Structured machine-readable explanation of the step outcome.
+          properties:
+            action_outcome:    { type: string }
+            events_fired:      { type: array, items: { type: string } }
+            reward_signal:     { type: string, enum: [strong_positive, positive, neutral, mild_penalty, heavy_penalty] }
+            reward_components: { type: object }
+            sprint_progress:
+              type: object
+              properties:
+                done:   { type: integer }
+                total:  { type: integer }
+                pct:    { type: number }
+                failed: { type: integer }
+            urgent_warning: { type: [string, 'null'] }
+
+reward_schema:
+  type: number
+  description: >
+    Dense shaped per-step reward. Ranges roughly from -5 to +10 per step.
+    Terminal bonus at episode end scales with sprint delivery fraction.
+  components:
+    progress_reward:
+      formula: delta_sp * 0.50 * urgency_multiplier
+      description: Points awarded for reducing remaining_points on any task.
+    completion_ontime:
+      value: 1.50 * priority.value
+      description: Bonus for completing a task before its deadline.
+    completion_late:
+      value: 0.40
+      description: Partial credit for late completion.
+    failed_penalty:
+      value: -2.00 * priority.value
+      description: Penalty for task deadline expiry.
+    fatigue_penalty:
+      value: -0.05 per dev per step above 0.85 fatigue
+    blocked_penalty:
+      value: -0.10 per idle ready task with no assignee
+    noop_penalty:
+      value: -0.05 per wasted (ready task, free dev) pair
+    terminal_bonus:
+      formula: (0.6 * delivery_ratio + 0.4 * value_ratio) * 5.0
+      description: One-time end-of-episode bonus tied to final sprint outcome.
+
+grader_schema:
+  description: >
+    8-dimension deterministic grader. Scores lie in [0.0, 1.0].
+    Weights sum to 1.0. Letter grades: A+(≥0.93) A(≥0.85) B+(≥0.77) B(≥0.70) C(≥0.60) D(≥0.50) F.
+  dimensions:
+    delivery:
+      weight: 0.25
+      description: Fraction of total story points delivered.
+    value:
+      weight: 0.20
+      description: Fraction of total business value captured.
+    timeliness:
+      weight: 0.15
+      description: On-time delivery ratio (with 0.4× partial credit for late).
+    priority:
+      weight: 0.10
+      description: Penalises completing low-priority tasks while high-priority ones fail.
+    team_health:
+      weight: 0.10
+      description: Penalises high fatigue, overtime, and unassign churn.
+    adaptability:
+      weight: 0.10
+      description: Fraction of event-injected tasks completed.
+    efficiency:
+      weight: 0.07
+      description: Story points delivered vs theoretical maximum throughput.
+    dependency:
+      weight: 0.03
+      description: Detects causal-order violations in completed task sequences.
+
+formal_tasks:
+  - id: task_easy
+    scenario: easy
+    description: >
+      Small sprint. 6 tasks, 3 developers, 20 steps.
+      No dependency chains. Tests basic assignment and fatigue management.
+    difficulty: beginner
+
+  - id: task_medium
+    scenario: medium
+    description: >
+      Medium sprint. 12 tasks, 4 developers, 40 steps.
+      Dependency chains, varying deadlines, scope changes, and sick days.
+      Tests dependency-aware scheduling and reprioritisation.
+    difficulty: intermediate
+
+  - id: task_hard
+    scenario: hard
+    description: >
+      Chaos sprint. 18 tasks, 5 developers, 50 steps.
+      Dense dependencies, stochastic events (bugs, outages, knowledge transfer),
+      tight deadlines, and high task injection rate.
+      Tests adaptability, risk management, and multi-objective optimisation.
+    difficulty: advanced
+
+environment_dynamics:
+  stochastic_events:
+    - type: bug_report
+      effect: Injects a CRITICAL hotfix task with tight deadline (3–7 steps).
+      probability: 0.30 (pre-scheduled) + 0.10 ad-hoc per step
+    - type: scope_change
+      effect: Increases story points of a random in-progress or ready task.
+      probability: 0.50 (pre-scheduled) + ad-hoc
+    - type: developer_sick
+      effect: Removes a developer from active roster for 2–5 steps.
+      probability: 0.65 (pre-scheduled) + ad-hoc
+    - type: urgent_feature
+      effect: Injects a HIGH-priority feature task with 5–10 step deadline.
+      probability: ad-hoc only
+    - type: infra_outage
+      effect: Blocks all devops tasks for 2 steps.
+      probability: ad-hoc only
+    - type: knowledge_transfer
+      effect: Boosts weakest skill of a random developer by 0.15–0.30 for 3–7 steps.
+      probability: ad-hoc only
+
+  developer_model:
+    fatigue:
+      increment_per_step: 0.06 (base), 0.078 (pair programming), scales with multi-tasking
+      recovery_idle: -0.03 per step when unassigned
+      recovery_rest_action: -0.40 (up to fatigue cap)
+    effective_velocity: velocity * (1.0 - 0.7 * fatigue)
+    pair_bonus: 1.4× work rate when two developers pair on the same task
+
+deployment:
+  container: Dockerfile
+  port: 7860
+  entrypoint: uvicorn main:app --host 0.0.0.0 --port 7860
+  healthcheck: GET /health
+  docs: GET /docs (Swagger UI)
+  endpoints:
+    - GET  /demo
+    - POST /reset
+    - POST /step
+    - GET  /state
+    - GET  /tasks
+    - GET  /grader
+    - GET  /timeline
+    - GET  /baseline

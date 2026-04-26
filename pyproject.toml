@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "adaptive-ai-project-manager"
+version = "2.1.0"
+description = "A high-fidelity Agile sprint simulation environment for reinforcement learning."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "The Commardes" }
+]
+keywords = ["project-management", "agile", "multi-agent", "reinforcement-learning", "openenv"]
+
+dependencies = [
+    "fastapi>=0.111.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "pydantic>=2.7.0,<3.0.0",
+    "httpx>=0.27.0,<1.0.0",
+    "anyio>=4.3.0,<5.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "openai>=2.7.2,<3.0.0",
+    "openenv-core>=0.2.0",
+]
+
+[project.scripts]
+start = "main:app"
+server = "server.app:main"
+
+[project.optional-dependencies]
+train = [
+    "trl>=0.15.0",
+    "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git",
+    "datasets>=2.18.0",
+    "transformers>=4.40",
+    "accelerate>=0.30.0",
+    "peft>=0.11.0",
+    "bitsandbytes>=0.43.0",
+    "mergekit",
+    "matplotlib>=3.7.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "wandb",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+exclude = ["venv*", ".venv*", "__pycache__*", "tests*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.md"]

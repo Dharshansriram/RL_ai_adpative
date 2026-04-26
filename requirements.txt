@@ -1,0 +1,22 @@
+# requirements.txt — Hugging Face Space runtime dependencies
+# Keep this file API/runtime only so Space builds stay stable.
+
+# --- Server runtime ---
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.29.0,<1.0.0
+pydantic>=2.7.0,<3.0.0
+httpx>=0.27.0,<1.0.0
+anyio>=4.3.0,<5.0.0
+requests>=2.31.0,<3.0.0
+
+# --- Environment core ---
+openenv-core>=0.2.0
+
+# --- Utilities used by app/inference scripts ---
+numpy>=1.24.0
+openai>=2.7.2,<3.0.0
+
+# NOTE:
+# Training-only packages (trl, unsloth, transformers, peft, bitsandbytes,
+# datasets, mergekit, wandb, matplotlib, pandas) are intentionally excluded
+# from Space runtime requirements. Install them in Colab/local training envs.
