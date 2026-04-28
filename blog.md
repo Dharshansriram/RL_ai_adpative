@@ -122,9 +122,9 @@ Your proof is: **the Space works**, the **training notebook runs against it**, *
 |----------|-----|
 | Hugging Face Space | [huggingface.co/spaces/dharshansriram/openenv-pr-ai](https://huggingface.co/spaces/dharshansriram/openenv-pr-ai) |
 | API base | `https://dharshansriram-openenv-pr-ai.hf.space` |
-| Weights & Biases (GRPO run) | Open project **`huggingface`** under entity **`Dharshansriram-r-ciet`**, run **`openenv-pm-grpo`**, then paste the run URL here (format: `https://wandb.ai/.../runs/...`) |
-| Source code & README | Add your **public GitHub** repo URL when you open-source the submission https://github.com/Dharshansriram/RL_ai_adpative|
-| Mini-blog (HF) | After you publish this post on Hugging Face, **replace** this row with that post’s URL (judges expect a link, not only a file in the repo) |
+| Weights & Biases (GRPO run) | Open project **`huggingface`** under entity **`Dharshansriram-r-ciet`**, run **`openenv-pm-grpo`**,  https://wandb.ai/Dharshansriram-r-ciet/huggingface/runs/|
+| Source code & README |GitHub**  https://github.com/Dharshansriram/RL_ai_adpative|
+| Mini-blog (HF) |https://huggingface.co/spaces/dharshansriram/openenv-pr-ai/blob/main/blog.md |
 
 ---
 
